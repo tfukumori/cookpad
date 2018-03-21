@@ -17,8 +17,8 @@ import pandas as pd
 #data_format = "channels_first"
 data_format = "channels_last"
 
-PATH_TO_TRAIN_IMAGES = os.path.join('data', 'processed', 'train_images')
-PATH_TO_TRAIN_DATA = os.path.join('data', 'given', 'train_master.tsv')
+PATH_TO_TRAIN_IMAGES = os.path.join('..\data', 'processed', 'train_images')
+PATH_TO_TRAIN_DATA = os.path.join('..\data', 'given', 'train_master.tsv')
 PATH_TO_MODEL = os.path.join('models', 'param')
 
 def load_train_data(path_to_train_images, path_to_train_data):
@@ -180,6 +180,7 @@ def train_model(model, X, y):
     epochs = 20 # 1つのデータ当たりの学習回数
     # ある程度までは多ければいいが、メモリを食う。多すぎると正しい判定にならない（人生相談に言い換えるとわかりやすいかもしれない）
     batch_size = 32              # 学習係数を更新するために使う教師データ数
+
     history = model.fit(X, y, 
         epochs=epochs, 
         batch_size=batch_size, 
