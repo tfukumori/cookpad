@@ -12,6 +12,10 @@ from PIL import Image
 import numpy as np
 import os
 import pandas as pd
+from keras.callbacks import ModelCheckpoint, CSVLogger, LearningRateScheduler, ReduceLROnPlateau
+from keras.preprocessing.image import ImageDataGenerator
+from sklearn.model_selection import KFold
+from sklearn.model_selection import train_test_split
 
 
 #data_format = "channels_first"
@@ -19,7 +23,8 @@ data_format = "channels_last"
 
 PATH_TO_TRAIN_IMAGES = os.path.join('..\data', 'processed', 'train_images')
 PATH_TO_TRAIN_DATA = os.path.join('..\data', 'given', 'train_master.tsv')
-PATH_TO_MODEL = os.path.join('models', 'param')
+PATH_TO_MODELPARAM = os.path.join('..\models', 'param')
+PATH_TO_MODEL = '..\models'
 
 def load_train_data(path_to_train_images, path_to_train_data):
     print('loading train data ...')
@@ -62,35 +67,6 @@ def load_train_data(path_to_train_images, path_to_train_data):
     print('loading train data ...done.')
     return X, y
 
-#def openfile(dir_name, data_format="channels_last"):
-#    """ 画像をリストとして返す
-#    """
-#    image_list = []
-#    files = os.listdir(dir_name)    # ディレクトリ内部のファイル一覧を取得
-#    print(files)
-#    for file in files:
-#        root, ext = os.path.splitext(file)  # 拡張子を取得
-#        if ext != ".jpg":
-#            continue
-#        path = os.path.join(dir_name, file) # ディレクトリ名とファイル名を結合して、パスを作成
-#        # 画像を32x32pixelに変換し、1要素が[R,G,B]3要素を含む２次元配列として読み込む。
-#        # [R,G,B]はそれぞれが0-255の配列。
-#        image = np.array(Image.open(path).resize((32, 32)))
-#        if data_format == "channels_first":
-#            image = image.transpose(2, 0, 1)   # 配列を変換し、[[Redの配列],[Greenの配列],[Blueの配列]] のような形にする。
-#        image = image / 255.                   # 値を0-1に正規化
-#        image_list.append(image)        # 出来上がった配列をimage_listに追加  
-#    return image_list
-## 画像を読み込む
-#img1 = openfile('1_train')
-#img2 = openfile('2_train')
-#x = np.array(img1 + img2)  # リストを結合
-#y = np.array([0] * len(img1) + [1] * len(img2))  # 正解ラベルを作成
-#y = np_utils.to_categorical(y)                   # ベルをone-hot-encoding形式に変換
-#print(x.shape)
-#print(y)
-##exit()
-
 def plot_history(history):
     print('plot history ...')
 
@@ -117,11 +93,11 @@ def plot_history(history):
 
     print('plot history ...done.')
 
-def instanciate_model(X):
+def instanciate_model(X_train):
     print('create the model ...')
 
     # input_shapeに32:32:3が渡される形。縦、横、RGB
-    in_shape = X.shape[1:]
+    in_shape = X_train.shape[1:]
 
     # モデルの作成
     model = Sequential()
@@ -139,17 +115,10 @@ def instanciate_model(X):
     #   過学習を防ぐためにある（逆から計算する際にどれだけ学習が固定される、
     #   ネットワークから切り離されるわけではない、層を深くするのが簡単になる）
 
-    model.add(Conv2D(32, (3, 3), padding="same", data_format=data_format, input_shape=in_shape))  
+    model.add(Conv2D(64, (3, 3), padding="same", data_format=data_format, input_shape=in_shape))  
     model.add(Activation('relu'))
 
-    model.add(Conv2D(32, (3, 3)))
-    model.add(Activation('relu'))
-    model.add(MaxPooling2D(pool_size=(2, 2)))
-
-    model.add(Conv2D(32, (3, 3), padding='same'))
-    model.add(Activation('relu'))
-
-    model.add(Conv2D(32, (3, 3)))
+    model.add(Conv2D(64, (3, 3)))
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(2, 2)))
 
@@ -160,7 +129,7 @@ def instanciate_model(X):
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(2, 2)))
 
-    model.add(Dropout(0.25))
+    #model.add(Dropout(0.25))
 
     # ２次元から１次元ベクトルに変換する
     model.add(Flatten())
@@ -197,62 +166,7 @@ def instanciate_model(X):
     return model
 
 
-def instanciate_model_org(X):
-    print('create the model ...')
-
-    # input_shapeに32:32:3が渡される形。縦、横、RGB
-    in_shape = X.shape[1:]
-
-    # モデルの作成
-    model = Sequential()
-
-    # 畳み込み層の作成
-    # 1層目の追加2次元の層の畳み込み、padding=same,畳み込みしても画像サイズが変わらないように
-    # カーネル数32, カーネルサイズ(3,3), input_shapeは1層目なので必要。https://keras.io/ja/layers/convolutional/#conv2d
-    model.add(Conv2D(32, (3, 3), padding="same", data_format=data_format, input_shape=in_shape))  
-    # 活性化層（発火を判定するための層）。前後の層をreluという活性化関数でつなぐ
-    model.add(Activation('relu'))
-
-    model.add(Conv2D(32, (3, 3)))
-    model.add(Activation('relu'))
-    model.add(MaxPooling2D(pool_size=(2, 2)))
-    # 過学習を防ぐためにある（逆から計算する際にどれだけ学習が固定される、ネットワークから切り離されるわけではない、層を深くするのが簡単になる）
-    model.add(Dropout(0.25))
-    model.add(Conv2D(64, (3, 3), padding='same'))
-    model.add(Activation('relu'))
-    model.add(Conv2D(64, (3, 3)))
-    model.add(Activation('relu'))
-    model.add(MaxPooling2D(pool_size=(2, 2)))
-    model.add(Dropout(0.25))
-    # ２次元から１次元ベクトルに変換する
-    model.add(Flatten())
-    # ユニット数を減らす 
-    model.add(Dense(200))
-    model.add(Activation('relu'))
-    model.add(Dropout(0.5))
-    model.add(Dense(55))                # 出力層のユニット数は2
-    # お約束。シグモイド関数を使う（0-1にして、softmax層を挟みたいため）
-    model.add(Activation('sigmoid'))
-    # 学習には寄与しないが、人間のためにある。
-    # 例えば、タコとイカを判定した際に、たこ0.6 イカ0.55という結果になった時に信頼できないということを表したい。
-    # 全体の比率を表してくれる。どのような認識でも、シグモイド関数とソフトマックス層を挟む
-    model.add(Activation('softmax'))
-    # 最適化器。誤差を元に係数を修正するためのやり方。
-    # いろいろやり方がある。収束が早い方法(Adam)と汎化が良い方法(SGD)
-    # 最初はAdamで収束したらSGD
-    opt = keras.optimizers.Adam(lr=0.0005, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0003) # 最適化器のセット。lrは学習係数
-    # 損失関数を指定している（categorical_crossentropy）
-    # 識別問題の場合は、これ（categorical_crossentropy）結果をどうやって1と0にするか
-    # metricsは学習には寄与しない。人間のため
-    model.compile(optimizer=opt,       # コンパイル
-          loss='categorical_crossentropy',
-          metrics=['accuracy'])
-    print(model.summary())
-
-    print('create the model ...done.')
-    return model
-
-def train_model(model, X, y):
+def train_model(model, X_train, Y_train):
     print('train the model ...')
 
     # 学習
@@ -262,14 +176,59 @@ def train_model(model, X, y):
     # 学習係数を更新するために使う教師データ数
     batch_size = 100
 
-    history = model.fit(X, y, 
-        epochs=epochs, 
-        batch_size=batch_size, 
-        verbose=1,                          # 学習に学習の経過を表示するかどうか
-        validation_split=0.1,               # 渡された教師データのうち、何割を検証に使用するか
-        #validation_data=(x_test, y_test),  # validation_dataをセットするとvalidation_splitは無視される
-        shuffle=True,                       # 学習毎にデータをシャッフルする。学習の汎化性能を上げる（同じ順番で学習すると学習に相当影響するため。ゲームで同じ順番だとあるパターンにしか対応できなくなるのと一緒）
-        )                                   # 返り値には、学習中のlossやaccなどが格納される（metricsに指定する必要がある）
+    # データの水増し（Data Augmentation）
+    datagen = ImageDataGenerator(      
+                                 rotation_range=180,
+                                 horizontal_flip=True,
+                                 fill_mode='nearest')
+
+    # 水増し画像を訓練用画像の形式に合わせる
+    datagen.fit(X_train)
+
+    
+    # 過学習の抑制
+    #early_stopping = EarlyStopping(monitor='val_loss', patience=10 , verbose=1)
+
+    # 評価に用いるモデル重みデータの保存
+    #checkpointer = ModelCheckpoint(model_weights, monitor='val_loss', verbose=1, save_best_only=True)
+    #callbacks=[early_stopping, checkpointer]) 
+
+    train_generator = datagen.flow(X_train, Y_train, batch_size=batch_size)
+
+    test_generator = datagen.flow(X_train, Y_train, batch_size=batch_size)
+
+    checkpointer = ModelCheckpoint(filepath=PATH_TO_MODELPARAM+'\model.{epoch:02d}-{val_loss:.2f}.hdf5', verbose=1, save_best_only=True)
+    csv_logger = CSVLogger(PATH_TO_MODEL + '\model.log')
+
+    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2,
+                      patience=5, min_lr=0.001)
+
+    BATCH_SIZE = 16
+
+    NUM_TRAINING = 160 #1600
+    NUM_VALIDATION = 64 #400
+
+    EPOCHS = 10
+
+    # リアルタイムに水増し生成されるバッチ画像に対するモデルの適用
+    history = model.fit_generator(train_generator,
+                    steps_per_epoch=NUM_TRAINING/BATCH_SIZE,
+                    epochs=EPOCHS,
+                    validation_data=test_generator,
+                    validation_steps=NUM_VALIDATION/BATCH_SIZE,
+                    verbose=1,
+                    callbacks=[reduce_lr, csv_logger, checkpointer])
+
+    #history = model.fit(X_train, Y_train, 
+    #    epochs=epochs, 
+    #    batch_size=batch_size, 
+    #    verbose=1,                          # 学習に学習の経過を表示するかどうか
+    #    validation_split=0.1,               # 渡された教師データのうち、何割を検証に使用するか
+    #    #validation_data=(X_test, Y_test),  # validation_dataをセットするとvalidation_splitは無視される
+    #    shuffle=True,                       # 学習毎にデータをシャッフルする。学習の汎化性能を上げる（同じ順番で学習すると学習に相当影響するため。ゲームで同じ順番だとあるパターンにしか対応できなくなるのと一緒）
+    #    ) 
+    
+    # 返り値には、学習中のlossやaccなどが格納される（metricsに指定する必要がある）
 
 
     # サマリー
@@ -277,7 +236,7 @@ def train_model(model, X, y):
 
     # モデルの評価
     print('evalute.')
-    score = model.evaluate(X, y)
+    score = model.evaluate(X_train, Y_train)
     print('')
     print('evalute...done.')
 
@@ -288,28 +247,35 @@ def train_model(model, X, y):
     plot_history(history)                     # lossの変化をグラフで表示
 
     print('training the model ...done.')
+    return model
 
-def save_model(model, name):
+def save_model(model, modelpath, modelparampath):
     print('saving the model ...')
 
+    #json_string = model.to_json()
+    #if not os.path.isdir("cache"):
+    #    os.mkdir("cache")
+    #json_name = "architecture.json"
+    #open(os.path.join("cache", json_name),"w").write(json_string)
+
     # 学習結果を保存 次の判定に使用する。モデルと結合係数は別々に保存することで、モデルは別の人を使用し、結合係数は自分のものを使用するということができる
-    open("model", "w").write(model.to_json()) # モデル情報の保存
-    model.save_weights(name+'.hdf5')          # 獲得した結合係数を保存
+    open(modelpath +"\model", "w").write(model.to_json()) # モデル情報の保存
+    model.save_weights(modelparampath + "\model.hdf5")          # 獲得した結合係数を保存
 
     print('saving the model ...done.')
 
 
 ## load the data for training
-X, y = load_train_data(PATH_TO_TRAIN_IMAGES, PATH_TO_TRAIN_DATA)
+X_train, Y_train = load_train_data(PATH_TO_TRAIN_IMAGES, PATH_TO_TRAIN_DATA)
     
 ## instanciate the model
-model = instanciate_model(X)
+model = instanciate_model(X_train)
 
 ## train the model
-model = train_model(model, X, y)
+model = train_model(model, X_train, Y_train)
 
 ## save the trained model
-save_model(model, PATH_TO_MODEL)
+save_model(model, PATH_TO_MODEL, PATH_TO_MODELPARAM)
 
 
 
