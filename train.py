@@ -23,11 +23,13 @@ data_format = "channels_last"
 
 PATH_TO_TRAIN_IMAGES = os.path.join('..\data', 'processed', 'train_images')
 PATH_TO_TRAIN_DATA = os.path.join('..\data', 'given', 'train_master.tsv')
+PATH_TO_TEST_IMAGES = os.path.join('..\data', 'processed', 'train_images')
+PATH_TO_TEST_DATA = os.path.join('..\data', 'given', 'test_master.tsv')
 PATH_TO_MODELPARAM = os.path.join('..\models', 'param')
 PATH_TO_MODEL = '..\models'
 
-def load_train_data(path_to_train_images, path_to_train_data):
-    print('loading train data ...')
+def load_data(path_to_train_images, path_to_train_data):
+    print('loading data ...' + path_to_train_data)
     data = pd.read_csv(path_to_train_data, sep='\t')
     image_list = []
     X = []
@@ -64,7 +66,7 @@ def load_train_data(path_to_train_images, path_to_train_data):
 
     print(y)
 
-    print('loading train data ...done.')
+    print('loading data ...done ' + path_to_train_data)
     return X, y
 
 def plot_history(history):
@@ -166,7 +168,7 @@ def instanciate_model(X_train):
     return model
 
 
-def train_model(model, X_train, Y_train):
+def train_model(model, X_train, Y_train, X_test, Y_test):
     print('train the model ...')
 
     # 学習
@@ -195,7 +197,7 @@ def train_model(model, X_train, Y_train):
 
     train_generator = datagen.flow(X_train, Y_train, batch_size=batch_size)
 
-    test_generator = datagen.flow(X_train, Y_train, batch_size=batch_size)
+    test_generator = datagen.flow(X_test, Y_test, batch_size=batch_size)
 
     checkpointer = ModelCheckpoint(filepath=PATH_TO_MODELPARAM+'\model.{epoch:02d}-{val_loss:.2f}.hdf5', verbose=1, save_best_only=True)
     csv_logger = CSVLogger(PATH_TO_MODEL + '\model.log')
@@ -266,13 +268,16 @@ def save_model(model, modelpath, modelparampath):
 
 
 ## load the data for training
-X_train, Y_train = load_train_data(PATH_TO_TRAIN_IMAGES, PATH_TO_TRAIN_DATA)
+X_train, Y_train = load_data(PATH_TO_TRAIN_IMAGES, PATH_TO_TRAIN_DATA)
+
+## load the data for training
+X_test, Y_test = load_data(PATH_TO_TEST_IMAGES, PATH_TO_TEST_DATA)
     
 ## instanciate the model
 model = instanciate_model(X_train)
 
 ## train the model
-model = train_model(model, X_train, Y_train)
+model = train_model(model, X_train, Y_train, X_test, Y_test)
 
 ## save the trained model
 save_model(model, PATH_TO_MODEL, PATH_TO_MODELPARAM)
