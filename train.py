@@ -1,9 +1,12 @@
 # purpose: kerasによる花の画像を利用したCNNのテスト　学習編
 # author: Katsuhiro MORISHITA　森下功啓
+# edit: FUKUMORI
 # memo: 
 # created: 2018-02-17
+
 import keras
 from keras.models import Sequential
+from keras.models import load_model
 from keras.layers import Dense, Dropout, Activation, Flatten
 from keras.layers import Conv2D, MaxPooling2D
 from keras.utils import np_utils
@@ -11,6 +14,7 @@ from matplotlib import pylab as plt
 from PIL import Image
 import numpy as np
 import os
+import pickle
 import pandas as pd
 from keras.callbacks import ModelCheckpoint, CSVLogger, LearningRateScheduler, ReduceLROnPlateau
 from keras.preprocessing.image import ImageDataGenerator
@@ -23,50 +27,69 @@ data_format = "channels_last"
 
 PATH_TO_TRAIN_IMAGES = os.path.join('..\data', 'processed', 'train_images')
 PATH_TO_TRAIN_DATA = os.path.join('..\data', 'given', 'train_master.tsv')
+PATH_TO_TRAIN_PICKLE_X = os.path.join('..\data', 'processed', 'train_images_edit_X.pickle')
+PATH_TO_TRAIN_PICKLE_Y = os.path.join('..\data', 'processed', 'train_images_edit_y.pickle')
 PATH_TO_TEST_IMAGES = os.path.join('..\data', 'processed', 'train_images')
 PATH_TO_TEST_DATA = os.path.join('..\data', 'given', 'test_master.tsv')
+PATH_TO_TEST_PICKLE_X = os.path.join('..\data', 'processed', 'test_images_edit_X.pickle')
+PATH_TO_TEST_PICKLE_Y = os.path.join('..\data', 'processed', 'test_images_edit_y.pickle')
 PATH_TO_MODELPARAM = os.path.join('..\models', 'param')
+PATH_TO_MODELPARAM_CONTINUE = os.path.join(PATH_TO_MODELPARAM, 'model.continue.hdf5')
 PATH_TO_MODEL = '..\models'
 
-def load_data(path_to_train_images, path_to_train_data):
-    print('loading data ...' + path_to_train_data)
-    data = pd.read_csv(path_to_train_data, sep='\t')
+IMAGE_WIDTH=64
+IMAGE_HEIGHT=64
+
+
+def load_data(path_to_images, path_to_data, path_to_images_pickle_x, path_to_images_pickle_y):
+    print('loading data ...' + path_to_data)
+    data = pd.read_csv(path_to_data, sep='\t')
     image_list = []
     X = []
     y = []
-    for row in data.iterrows():
-        f, l = row[1]['file_name'], row[1]['category_id']
-        try:
-            #im = Image.open(os.path.join(path_to_train_images, f))
-            # you may write preprocess method here given an image
-            # im = preprocess_methods.my_preprocess_method(im)
-            #X.append(np.array(im).flatten())
+    if os.path.isfile(path_to_images_pickle_x):
+        with open(path_to_images_pickle_x, 'rb') as f:
+            X = pickle.load(f)
+        with open(path_to_images_pickle_y, 'rb') as f:
+            y = pickle.load(f)
 
-            # 画像を32x32pixelに変換し、1要素が[R,G,B]3要素を含む２次元配列として読み込む。
-            # [R,G,B]はそれぞれが0-255の配列。
-            path = os.path.join(path_to_train_images, f)
-            im = Image.open(path).resize((32, 32))
-            image = np.array(im)
-            if data_format == "channels_first":
-                image = image.transpose(2, 0, 1)   # 配列を変換し、[[Redの配列],[Greenの配列],[Blueの配列]] のような形にする。
-            image = image / 255.                   # 値を0-1に正規化
-            image_list.append(image)                  # 出来上がった配列を追加  
+    else:
+        for row in data.iterrows():
+            f, l = row[1]['file_name'], row[1]['category_id']
+            try:
+                #im = Image.open(os.path.join(path_to_train_images, f))
+                # you may write preprocess method here given an image
+                # im = preprocess_methods.my_preprocess_method(im)
+                #X.append(np.array(im).flatten())
 
-            y.append(l)
-        except Exception as e:
-            print(str(e))
+                # 画像を32x32pixelに変換し、1要素が[R,G,B]3要素を含む２次元配列として読み込む。
+                # [R,G,B]はそれぞれが0-255の配列。
+                path = os.path.join(path_to_images, f)
+                im = Image.open(path).resize((IMAGE_WIDTH, IMAGE_HEIGHT))
+                image = np.array(im)
+                if data_format == "channels_first":
+                    image = image.transpose(2, 0, 1)   # 配列を変換し、[[Redの配列],[Greenの配列],[Blueの配列]] のような形にする。
+                image = image / 255.                   # 値を0-1に正規化
+                image_list.append(image)                  # 出来上がった配列を追加  
 
-    X = np.array(image_list)
-    y = np.array(y)
+                y.append(l)
+            except Exception as e:
+                print(str(e))
+
+        X = np.array(image_list)
+        y = np.array(y)
+
+        y = np_utils.to_categorical(y, 55)                   # one-hot-encoding形式に変換
+
+        with open(path_to_images_pickle_x, 'wb') as f:
+            pickle.dump(X, f)
+        with open(path_to_images_pickle_y, 'wb') as f:
+            pickle.dump(y, f)
 
     print(X.shape)
     print(y)
-    
-    y = np_utils.to_categorical(y, 55)                   # ベルをone-hot-encoding形式に変換
 
-    print(y)
-
-    print('loading data ...done ' + path_to_train_data)
+    print('loading data ...done ' + path_to_data)
     return X, y
 
 def plot_history(history):
@@ -116,6 +139,8 @@ def instanciate_model(X_train):
     # model.add(Dropout(0.25))
     #   過学習を防ぐためにある（逆から計算する際にどれだけ学習が固定される、
     #   ネットワークから切り離されるわけではない、層を深くするのが簡単になる）
+            
+
 
     model.add(Conv2D(64, (3, 3), padding="same", data_format=data_format, input_shape=in_shape))  
     model.add(Activation('relu'))
@@ -140,7 +165,7 @@ def instanciate_model(X_train):
     model.add(Dense(200))
     model.add(Activation('relu'))
     model.add(Dropout(0.5))
-    model.add(Dense(55))                # 出力層のユニット数は2
+    model.add(Dense(55))                # 出力層のユニット数
 
     # お約束。シグモイド関数を使う（0-1にして、softmax層を挟みたいため）
     model.add(Activation('sigmoid'))
@@ -167,16 +192,30 @@ def instanciate_model(X_train):
     print('create the model ...done.')
     return model
 
+def load_model_fromfile(modelpath):
+    print('load the model ...')
+    return load_model(modelpath)
 
-def train_model(model, X_train, Y_train, X_test, Y_test):
+def train_model(model, X_train, Y_train, isValidation):
     print('train the model ...')
 
-    # 学習
-    # 1つのデータ当たりの学習回数
-    # ある程度までは多ければいいが、メモリを食う。多すぎると正しい判定にならない（人生相談に言い換えるとわかりやすいかもしれない）
-    epochs = 20
-    # 学習係数を更新するために使う教師データ数
-    batch_size = 100
+    BATCH_SIZE = 16
+    EPOCHS = 30
+
+    NUM_TRAINING = X_train.shape[0]
+    RATE_TEST = 0.05
+    NUM_TEST = int(NUM_TRAINING * RATE_TEST)
+    RATE_VALIDATION = 0.20
+    NUM_VALIDATION = int(NUM_TRAINING * RATE_VALIDATION)
+
+    shuffle_dataset(X_train, Y_train)
+
+    X_test = X_train[:NUM_TEST]
+    Y_test = Y_train[:NUM_TEST]
+    X_val = X_train[NUM_TEST:NUM_TEST+NUM_VALIDATION]
+    Y_val = Y_train[NUM_TEST:NUM_TEST+NUM_VALIDATION]
+    X_train = X_train[NUM_TEST+NUM_VALIDATION:]
+    Y_train = Y_train[NUM_TEST+NUM_VALIDATION:]
 
     # データの水増し（Data Augmentation）
     datagen = ImageDataGenerator(      
@@ -187,7 +226,6 @@ def train_model(model, X_train, Y_train, X_test, Y_test):
     # 水増し画像を訓練用画像の形式に合わせる
     datagen.fit(X_train)
 
-    
     # 過学習の抑制
     #early_stopping = EarlyStopping(monitor='val_loss', patience=10 , verbose=1)
 
@@ -195,31 +233,46 @@ def train_model(model, X_train, Y_train, X_test, Y_test):
     #checkpointer = ModelCheckpoint(model_weights, monitor='val_loss', verbose=1, save_best_only=True)
     #callbacks=[early_stopping, checkpointer]) 
 
-    train_generator = datagen.flow(X_train, Y_train, batch_size=batch_size)
+    if isValidation:
+        train_generator = datagen.flow(X_val, Y_val, batch_size=BATCH_SIZE, shuffle=True)
+        num_sample = NUM_VALIDATION
+    else:
+        train_generator = datagen.flow(X_train, Y_train, batch_size=BATCH_SIZE, shuffle=True)
+        num_sample = NUM_TRAINING
 
-    test_generator = datagen.flow(X_test, Y_test, batch_size=batch_size)
+    test_generator = datagen.flow(X_test, Y_test, batch_size=BATCH_SIZE)
 
-    checkpointer = ModelCheckpoint(filepath=PATH_TO_MODELPARAM+'\model.{epoch:02d}-{val_loss:.2f}.hdf5', verbose=1, save_best_only=True)
+    checkpointer1 = ModelCheckpoint(
+            filepath=PATH_TO_MODELPARAM+'\model.{epoch:02d}-{val_loss:.2f}.hdf5',
+            verbose=1,
+            save_best_only=True
+        )
+    checkpointer2 = ModelCheckpoint(
+            filepath=PATH_TO_MODELPARAM_CONTINUE,
+            verbose=1,
+            save_best_only=True,
+            save_weights_only=False
+        )
+
     csv_logger = CSVLogger(PATH_TO_MODEL + '\model.log')
 
-    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2,
-                      patience=5, min_lr=0.001)
-
-    BATCH_SIZE = 16
-
-    NUM_TRAINING = 160 #1600
-    NUM_VALIDATION = 64 #400
-
-    EPOCHS = 10
+    reduce_lr = ReduceLROnPlateau(
+            monitor='val_loss',
+            factor=0.2,
+            patience=5,
+            min_lr=0.001
+        )
 
     # リアルタイムに水増し生成されるバッチ画像に対するモデルの適用
-    history = model.fit_generator(train_generator,
-                    steps_per_epoch=NUM_TRAINING/BATCH_SIZE,
-                    epochs=EPOCHS,
-                    validation_data=test_generator,
-                    validation_steps=NUM_VALIDATION/BATCH_SIZE,
-                    verbose=1,
-                    callbacks=[reduce_lr, csv_logger, checkpointer])
+    history = model.fit_generator(
+            train_generator,
+            steps_per_epoch=num_sample/BATCH_SIZE,
+            epochs=EPOCHS,
+            validation_data=test_generator,
+            validation_steps=NUM_TEST/BATCH_SIZE,
+            verbose=1,
+            callbacks=[reduce_lr, csv_logger, checkpointer1, checkpointer2]
+        )
 
     #history = model.fit(X_train, Y_train, 
     #    epochs=epochs, 
@@ -238,7 +291,10 @@ def train_model(model, X_train, Y_train, X_test, Y_test):
 
     # モデルの評価
     print('evalute.')
-    score = model.evaluate(X_train, Y_train)
+    if isValidation:
+        score = model.evaluate(X_val, Y_val)
+    else:
+        score = model.evaluate(X_train, Y_train)
     print('')
     print('evalute...done.')
 
@@ -266,18 +322,26 @@ def save_model(model, modelpath, modelparampath):
 
     print('saving the model ...done.')
 
+def shuffle_dataset(x, t):
+    permutation = np.random.permutation(x.shape[0])
+    x = x[permutation,:] if x.ndim == 2 else x[permutation,:,:,:]
+    t = t[permutation]
+    return x, t
 
 ## load the data for training
-X_train, Y_train = load_data(PATH_TO_TRAIN_IMAGES, PATH_TO_TRAIN_DATA)
+X_train, Y_train = load_data(PATH_TO_TRAIN_IMAGES, PATH_TO_TRAIN_DATA, PATH_TO_TRAIN_PICKLE_X, PATH_TO_TRAIN_PICKLE_Y)
 
-## load the data for training
-X_test, Y_test = load_data(PATH_TO_TEST_IMAGES, PATH_TO_TEST_DATA)
+### load the data for training
+#X_test, Y_test = load_data(PATH_TO_TEST_IMAGES, PATH_TO_TEST_DATA, PATH_TO_TEST_PICKLE_X, PATH_TO_TEST_PICKLE_Y)
     
-## instanciate the model
-model = instanciate_model(X_train)
+if os.path.isfile(PATH_TO_MODELPARAM_CONTINUE):
+    model = load_model_fromfile(PATH_TO_MODELPARAM_CONTINUE)
+else:
+    model = instanciate_model(X_train)
 
 ## train the model
-model = train_model(model, X_train, Y_train, X_test, Y_test)
+#model = train_model(model, X_train, Y_train, X_test, Y_test)
+model = train_model(model, X_train, Y_train, True)
 
 ## save the trained model
 save_model(model, PATH_TO_MODEL, PATH_TO_MODELPARAM)
