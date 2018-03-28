@@ -38,9 +38,8 @@ PATH_TO_MODELPARAM = os.path.join('..\models', 'param')
 PATH_TO_MODELPARAM_CONTINUE = os.path.join(PATH_TO_MODELPARAM, 'model.continue.hdf5')
 PATH_TO_MODEL = '..\models'
 
-IMAGE_WIDTH=64
-IMAGE_HEIGHT=64
-
+IMAGE_WIDTH=100
+IMAGE_HEIGHT=100
 
 def load_data(path_to_images, path_to_data, path_to_images_pickle_x, path_to_images_pickle_y):
     print('loading data ...' + path_to_data)
@@ -155,25 +154,25 @@ def instanciate_model(X_train):
 
     #畳み込み層の追加
     #畳み込み層
-    model.add(Conv2D(32, (3, 3), activation='relu', data_format=data_format, input_shape=in_shape))  
-    model.add(Conv2D(32, (3, 3), activation='relu'))
+    model.add(Conv2D(32, (3, 3), padding="same", activation='relu', data_format=data_format, input_shape=in_shape))  
+    model.add(Conv2D(32, (3, 3), padding="same", activation='relu'))
     model.add(MaxPooling2D(pool_size=(2, 2)))
     model.add(Dropout(0.5))
 
     #畳み込み層
-    model.add(Conv2D(64, (3, 3), activation='relu'))  
-    model.add(Conv2D(64, (3, 3), activation='relu'))
+    model.add(Conv2D(64, (3, 3), padding="same", activation='relu'))  
+    model.add(Conv2D(64, (3, 3), padding="same", activation='relu'))
     model.add(MaxPooling2D(pool_size=(2, 2)))
     model.add(Dropout(0.5))
 
     #畳み込み層
-    model.add(Conv2D(128, (3, 3), activation='relu'))  
-    model.add(Conv2D(128, (3, 3), activation='relu'))
+    model.add(Conv2D(128, (3, 3), padding="same", activation='relu'))  
+    model.add(Conv2D(128, (3, 3), padding="same", activation='relu'))
     model.add(MaxPooling2D(pool_size=(2, 2)))
     model.add(Dropout(0.5))
 
     #畳み込み層
-    model.add(Conv2D(256, (3, 3), activation='relu'))  
+    model.add(Conv2D(256, (3, 3), padding="same", activation='relu'))  
 
     # 平坦化
     model.add(Flatten())
@@ -367,7 +366,6 @@ else:
     model = instanciate_model(X_train)
 
 ## train the model
-#model = train_model(model, X_train, Y_train, X_test, Y_test)
 model = train_model(model, X_train, Y_train, False)
 
 ## save the trained model
