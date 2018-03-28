@@ -157,23 +157,23 @@ def instanciate_model(X_train):
     #畳み込み層
     model.add(Conv2D(32, (3, 3), activation='relu', data_format=data_format, input_shape=in_shape))  
     model.add(Conv2D(32, (3, 3), activation='relu'))
-    model.add(Conv2D(32, (3, 3), activation='relu'))
     model.add(MaxPooling2D(pool_size=(2, 2)))
-    model.add(Dropout(0.25))
+    model.add(Dropout(0.5))
 
     #畳み込み層
     model.add(Conv2D(64, (3, 3), activation='relu'))  
     model.add(Conv2D(64, (3, 3), activation='relu'))
-    model.add(Conv2D(64, (3, 3), activation='relu'))
     model.add(MaxPooling2D(pool_size=(2, 2)))
-    model.add(Dropout(0.25))
+    model.add(Dropout(0.5))
 
     #畳み込み層
     model.add(Conv2D(128, (3, 3), activation='relu'))  
     model.add(Conv2D(128, (3, 3), activation='relu'))
-    model.add(Conv2D(128, (3, 3), activation='relu'))
     model.add(MaxPooling2D(pool_size=(2, 2)))
-    model.add(Dropout(0.25))
+    model.add(Dropout(0.5))
+
+    #畳み込み層
+    model.add(Conv2D(256, (3, 3), activation='relu'))  
 
     # 平坦化
     model.add(Flatten())
@@ -217,7 +217,10 @@ def train_model(model, X_train, Y_train, isValidation):
     print('train the model ...')
 
     BATCH_SIZE = 16
-    EPOCHS = 100
+    if isValidation:
+        EPOCHS = 100
+    else:
+        EPOCHS = 1000
 
     NUM_TRAINING = X_train.shape[0]
     RATE_TEST = 0.05
@@ -231,8 +234,8 @@ def train_model(model, X_train, Y_train, isValidation):
     Y_test = Y_train[:NUM_TEST]
     X_val = X_train[NUM_TEST:NUM_TEST+NUM_VALIDATION]
     Y_val = Y_train[NUM_TEST:NUM_TEST+NUM_VALIDATION]
-    X_train = X_train[NUM_TEST+NUM_VALIDATION:]
-    Y_train = Y_train[NUM_TEST+NUM_VALIDATION:]
+    X_train = X_train[NUM_TEST:]
+    Y_train = Y_train[NUM_TEST:]
 
     # データの水増し（Data Augmentation）
     datagen = ImageDataGenerator(      
@@ -259,11 +262,12 @@ def train_model(model, X_train, Y_train, isValidation):
 
     test_generator = datagen.flow(X_test, Y_test, batch_size=BATCH_SIZE)
 
-    checkpointer1 = ModelCheckpoint(
-            filepath=PATH_TO_MODELPARAM+'\model.{epoch:02d}-{val_loss:.2f}.hdf5',
-            verbose=1,
-            save_best_only=True
-        )
+    # checkpointer1 = ModelCheckpoint(
+    #         filepath=PATH_TO_MODELPARAM+'\model.{epoch:02d}-{val_loss:.2f}.hdf5',
+    #         verbose=1,
+    #         save_best_only=True
+    #     )
+
     checkpointer2 = ModelCheckpoint(
             filepath=PATH_TO_MODELPARAM_CONTINUE,
             verbose=1,
@@ -288,7 +292,7 @@ def train_model(model, X_train, Y_train, isValidation):
             validation_data=test_generator,
             validation_steps=NUM_TEST/BATCH_SIZE,
             verbose=1,
-            callbacks=[reduce_lr, csv_logger, checkpointer1, checkpointer2]
+            callbacks=[reduce_lr, csv_logger, checkpointer2] #, checkpointer1
         )
 
     #history = model.fit(X_train, Y_train, 
@@ -364,7 +368,7 @@ else:
 
 ## train the model
 #model = train_model(model, X_train, Y_train, X_test, Y_test)
-model = train_model(model, X_train, Y_train, True)
+model = train_model(model, X_train, Y_train, False)
 
 ## save the trained model
 save_model(model, PATH_TO_MODEL, PATH_TO_MODELPARAM)
