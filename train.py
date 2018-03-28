@@ -33,6 +33,7 @@ PATH_TO_TEST_IMAGES = os.path.join('..\data', 'processed', 'train_images')
 PATH_TO_TEST_DATA = os.path.join('..\data', 'given', 'test_master.tsv')
 PATH_TO_TEST_PICKLE_X = os.path.join('..\data', 'processed', 'test_images_edit_X.pickle')
 PATH_TO_TEST_PICKLE_Y = os.path.join('..\data', 'processed', 'test_images_edit_y.pickle')
+PATH_TO_MODEL = '..\models'
 PATH_TO_MODELPARAM = os.path.join('..\models', 'param')
 PATH_TO_MODELPARAM_CONTINUE = os.path.join(PATH_TO_MODELPARAM, 'model.continue.hdf5')
 PATH_TO_MODEL = '..\models'
@@ -134,58 +135,74 @@ def instanciate_model(X_train):
     #   padding=same,畳み込みしても画像サイズが変わらないように
     #   input_shapeは1層目なので必要。https://keras.io/ja/layers/convolutional/#conv2d
 
-    # model.add(Activation('relu')) 活性化層（発火を判定するための層）。前後の層をreluという活性化関数でつなぐ
+    # model.add(Activation('relu')) 
+    # 　活性化層（発火を判定するための層）。前後の層をreluという活性化関数でつなぐ
 
     # model.add(Dropout(0.25))
-    #   過学習を防ぐためにある（逆から計算する際にどれだけ学習が固定される、
+    #   過学習を防ぐためにある（次のニューロンへのパスをランダムに調整する）
     #   ネットワークから切り離されるわけではない、層を深くするのが簡単になる）
-            
 
+    # model.add(Flatten())
+    # 　２次元から１次元ベクトルに変換する（平坦化）
 
-    model.add(Conv2D(64, (3, 3), padding="same", data_format=data_format, input_shape=in_shape))  
-    model.add(Activation('relu'))
+    # model.add(Activation('sigmoid'))
+    # 　お約束。シグモイド関数を使う（0-1にして、softmax層を挟みたいため）
 
-    model.add(Conv2D(64, (3, 3)))
-    model.add(Activation('relu'))
+    # model.add(Activation('softmax'))
+    # 　学習には寄与しないが、人間のためにある。
+    # 　例えば、タコとイカを判定した際に、たこ0.6 イカ0.55という結果になった時に信頼できないということを表したい。
+    # 　全体の比率を表してくれる。どのような認識でも、シグモイド関数とソフトマックス層を挟む
+
+    #畳み込み層の追加
+    #畳み込み層
+    model.add(Conv2D(32, (3, 3), activation='relu', data_format=data_format, input_shape=in_shape))  
+    model.add(Conv2D(32, (3, 3), activation='relu'))
+    model.add(Conv2D(32, (3, 3), activation='relu'))
     model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.25))
 
-    model.add(Conv2D(64, (3, 3), padding='same'))
-    model.add(Activation('relu'))
-
-    model.add(Conv2D(64, (3, 3)))
-    model.add(Activation('relu'))
+    #畳み込み層
+    model.add(Conv2D(64, (3, 3), activation='relu'))  
+    model.add(Conv2D(64, (3, 3), activation='relu'))
+    model.add(Conv2D(64, (3, 3), activation='relu'))
     model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.25))
 
-    #model.add(Dropout(0.25))
+    #畳み込み層
+    model.add(Conv2D(128, (3, 3), activation='relu'))  
+    model.add(Conv2D(128, (3, 3), activation='relu'))
+    model.add(Conv2D(128, (3, 3), activation='relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.25))
 
-    # ２次元から１次元ベクトルに変換する
+    # 平坦化
     model.add(Flatten())
-
-    # ユニット数を減らす 
-    model.add(Dense(200))
-    model.add(Activation('relu'))
+    # 全結合層
+    model.add(Dense(200, activation='relu'))
     model.add(Dropout(0.5))
-    model.add(Dense(55))                # 出力層のユニット数
+    # 出力層のユニット数
+    model.add(Dense(55, activation='softmax'))                
 
-    # お約束。シグモイド関数を使う（0-1にして、softmax層を挟みたいため）
-    model.add(Activation('sigmoid'))
+    # ここまででモデルの層完成
 
-    # 学習には寄与しないが、人間のためにある。
-    # 例えば、タコとイカを判定した際に、たこ0.6 イカ0.55という結果になった時に信頼できないということを表したい。
-    # 全体の比率を表してくれる。どのような認識でも、シグモイド関数とソフトマックス層を挟む
-    model.add(Activation('softmax'))
-
-    # 最適化器。誤差を元に係数を修正するためのやり方。
+    # 最適化器。
+    # 誤差を元に係数を修正するためのやり方。
     # いろいろやり方がある。収束が早い方法(Adam)と汎化が良い方法(SGD)
     # 最初はAdamで収束したらSGD
-    opt = keras.optimizers.Adam(lr=0.0005, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0003) # 最適化器のセット。lrは学習係数
+    opt = keras.optimizers.Adam(
+        lr=0.0005,              #学習係数
+        beta_1=0.9,
+        beta_2=0.999,
+        epsilon=1e-08,
+        decay=0.0003
+    ) 
 
-    # 損失関数を指定している（categorical_crossentropy）
-    # 識別問題の場合は、これ（categorical_crossentropy）結果をどうやって1と0にするか
-    # metricsは学習には寄与しない。人間のため
-    model.compile(optimizer=opt,       # コンパイル
-          loss='categorical_crossentropy',
-          metrics=['accuracy'])
+    # コンパイル
+    model.compile(
+        optimizer=opt,                          
+        loss='categorical_crossentropy',        # 損失関数を指定している（識別問題なら、categorical_crossentropy）
+        metrics=['accuracy']                    # metricsは学習には寄与しない。人間のため
+    )
 
     print(model.summary())
 
@@ -200,7 +217,7 @@ def train_model(model, X_train, Y_train, isValidation):
     print('train the model ...')
 
     BATCH_SIZE = 16
-    EPOCHS = 30
+    EPOCHS = 100
 
     NUM_TRAINING = X_train.shape[0]
     RATE_TEST = 0.05
@@ -333,7 +350,13 @@ X_train, Y_train = load_data(PATH_TO_TRAIN_IMAGES, PATH_TO_TRAIN_DATA, PATH_TO_T
 
 ### load the data for training
 #X_test, Y_test = load_data(PATH_TO_TEST_IMAGES, PATH_TO_TEST_DATA, PATH_TO_TEST_PICKLE_X, PATH_TO_TEST_PICKLE_Y)
+
+if not os.path.isdir(PATH_TO_MODEL):
+    os.mkdir(PATH_TO_MODEL)
     
+if not os.path.isdir(PATH_TO_MODELPARAM):
+    os.mkdir(PATH_TO_MODELPARAM)
+
 if os.path.isfile(PATH_TO_MODELPARAM_CONTINUE):
     model = load_model_fromfile(PATH_TO_MODELPARAM_CONTINUE)
 else:

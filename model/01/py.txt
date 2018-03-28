@@ -1,0 +1,121 @@
+def instanciate_model(X_train):
+    print('create the model ...')
+
+    # input_shapeに32:32:3が渡される形。縦、横、RGB
+    in_shape = X_train.shape[1:]
+
+    # モデルの作成
+    model = Sequential()
+
+    # 畳み込み層の作成
+
+    # model.add(Conv2D(32, (3, 3))) 2次元の層の畳み込み
+    #   カーネル数32, カーネルサイズ(3,3)
+    #   padding=same,畳み込みしても画像サイズが変わらないように
+    #   input_shapeは1層目なので必要。https://keras.io/ja/layers/convolutional/#conv2d
+
+    # model.add(Activation('relu')) 
+    # 　活性化層（発火を判定するための層）。前後の層をreluという活性化関数でつなぐ
+
+    # model.add(Dropout(0.25))
+    #   過学習を防ぐためにある（次のニューロンへのパスをランダムに調整する）
+    #   ネットワークから切り離されるわけではない、層を深くするのが簡単になる）
+
+    # model.add(Flatten())
+    # 　２次元から１次元ベクトルに変換する（平坦化）
+
+    # model.add(Activation('sigmoid'))
+    # 　お約束。シグモイド関数を使う（0-1にして、softmax層を挟みたいため）
+
+    # model.add(Activation('softmax'))
+    # 　学習には寄与しないが、人間のためにある。
+    # 　例えば、タコとイカを判定した際に、たこ0.6 イカ0.55という結果になった時に信頼できないということを表したい。
+    # 　全体の比率を表してくれる。どのような認識でも、シグモイド関数とソフトマックス層を挟む
+
+    #畳み込み層の追加
+    #1層目の追加
+    model.add(Conv2D(32, (3, 3), padding="same", data_format=data_format, input_shape=in_shape))  
+    model.add(Activation('relu'))
+
+    #2層目の畳み込み層
+    model.add(Conv2D(32, (3, 3), padding="same"))
+    model.add(Activation('relu'))
+
+    #プーリング層
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+
+    #Dropout
+    model.add(Dropout(0.5))
+
+    #3層目の畳み込み層
+    model.add(Conv2D(64, (3, 3), padding="same"))
+    model.add(Activation('relu'))
+
+    #4層目の畳み込み層
+    model.add(Conv2D(64, (3, 3), padding="same"))
+    model.add(Activation('relu'))
+
+    #プーリング層
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+
+    #Dropout
+    model.add(Dropout(0.5))
+
+    #5層目の畳み込み層
+    model.add(Conv2D(128, (3, 3), padding="same"))
+    model.add(Activation('relu'))
+
+    #6層目の畳み込み層
+    model.add(Conv2D(128, (3, 3), padding="same"))
+    model.add(Activation('relu'))
+
+    #プーリング層
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+
+    #Dropout
+    model.add(Dropout(0.5))
+
+    #7層目の畳み込み層
+    model.add(Conv2D(256, (3, 3), padding="same"))
+    model.add(Activation('relu'))
+
+    # 平坦化
+    model.add(Flatten())
+
+    # 8層目全結合層
+    model.add(Dense(200))
+    model.add(Activation('relu'))
+
+    #Dropout
+    model.add(Dropout(0.5))
+
+    # 出力層のユニット数
+    model.add(Dense(55))                
+    # model.add(Activation('sigmoid'))
+    model.add(Activation('softmax'))
+
+    # ここまででモデルの層完成
+
+    # 最適化器。
+    # 誤差を元に係数を修正するためのやり方。
+    # いろいろやり方がある。収束が早い方法(Adam)と汎化が良い方法(SGD)
+    # 最初はAdamで収束したらSGD
+    opt = keras.optimizers.Adam(
+        lr=0.0005,              #学習係数
+        beta_1=0.9,
+        beta_2=0.999,
+        epsilon=1e-08,
+        decay=0.0003
+    ) 
+
+    # コンパイル
+    model.compile(
+        optimizer=opt,                          
+        loss='categorical_crossentropy',        # 損失関数を指定している（識別問題なら、categorical_crossentropy）
+        metrics=['accuracy']                    # metricsは学習には寄与しない。人間のため
+    )
+
+    print(model.summary())
+
+    print('create the model ...done.')
+    return model
