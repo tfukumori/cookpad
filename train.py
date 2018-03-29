@@ -36,10 +36,9 @@ PATH_TO_TEST_PICKLE_Y = os.path.join('..\data', 'processed', 'test_images_edit_y
 PATH_TO_MODEL = '..\models'
 PATH_TO_MODELPARAM = os.path.join('..\models', 'param')
 PATH_TO_MODELPARAM_CONTINUE = os.path.join(PATH_TO_MODELPARAM, 'model.continue.hdf5')
-PATH_TO_MODEL = '..\models'
 
-IMAGE_WIDTH=100
-IMAGE_HEIGHT=100
+IMAGE_WIDTH=64
+IMAGE_HEIGHT=64
 
 def load_data(path_to_images, path_to_data, path_to_images_pickle_x, path_to_images_pickle_y):
     print('loading data ...' + path_to_data)

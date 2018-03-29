@@ -1,53 +1,92 @@
-
-# purpose: kerasによる花の画像を利用したCNNのテスト　　予測編
+# purpose: kerasによる花の画像を利用したCNNのテスト　学習編
 # author: Katsuhiro MORISHITA　森下功啓
+# edit: FUKUMORI
 # memo: 
 # created: 2018-02-17
-from sklearn import preprocessing # 次元毎の正規化に使う
-from keras.models import model_from_json
+
+import keras
+from keras.models import Sequential
+from keras.models import load_model
+from keras.layers import Dense, Dropout, Activation, Flatten
+from keras.layers import Conv2D, MaxPooling2D
+from keras.utils import np_utils
+from matplotlib import pylab as plt
 from PIL import Image
 import numpy as np
 import os
+import pickle
+import pandas as pd
+from keras.callbacks import ModelCheckpoint, CSVLogger, LearningRateScheduler, ReduceLROnPlateau
+from keras.preprocessing.image import ImageDataGenerator
+from sklearn.model_selection import KFold
+from sklearn.model_selection import train_test_split
 
 
+#data_format = "channels_first"
+data_format = "channels_last"
 
-# データの読み込み
-def openfile(dir_name, data_format="channels_last"):
-    """ 画像をリストとして返す
-    """
+PATH_TO_TEST_IMAGES = os.path.join('..\data', 'processed', 'test_images')
+PATH_TO_TEST_PICKLE_X = os.path.join('..\data', 'processed', 'test_images_edit_X.pickle')
+PATH_TO_MODEL = '..\models'
+PATH_TO_MODELPARAM = os.path.join('..\models', 'param')
+PATH_TO_SUBMIT_FILE = 'submit.csv'
+
+IMAGE_WIDTH=64
+IMAGE_HEIGHT=64
+
+def load_test_data(path_to_test_images, path_to_images_pickle_x):
+    print('loading test data ...')
     image_list = []
-    files = os.listdir(dir_name)    # ディレクトリ内部のファイル一覧を取得
-    print(files)
+    X = []
+    file_name = []
+    file = os.listdir(path_to_test_images)
 
-    for file in files:
-        root, ext = os.path.splitext(file)  # 拡張子を取得
-        if ext != ".jpg":
-            continue
+    if os.path.isfile(path_to_images_pickle_x):
+        with open(path_to_images_pickle_x, 'rb') as f:
+            X = pickle.load(f)
 
-        path = os.path.join(dir_name, file) # ディレクトリ名とファイル名を結合して、パスを作成
-        # 画像を32x32pixelに変換し、1要素が[R,G,B]3要素を含む２次元配列として読み込む。
-        # [R,G,B]はそれぞれが0-255の配列。
-        image = np.array(Image.open(path).resize((32, 32)))
-        if data_format == "channels_first":
-            image = image.transpose(2, 0, 1)   # 配列を変換し、[[Redの配列],[Greenの配列],[Blueの配列]] のような形にする。
-        image = image / 255.                   # 値を0-1に正規化
-        image_list.append(image / 255.)        # 出来上がった配列をimage_listに追加  
-    
-    return image_list
+    else:
+        for f in file:
+            try:
+                im = Image.open(os.path.join(PATH_TO_TEST_IMAGES, f)).resize((IMAGE_WIDTH, IMAGE_HEIGHT))
+                image = np.array(im)
+                if data_format == "channels_first":
+                    image = image.transpose(2, 0, 1)   # 配列を変換し、[[Redの配列],[Greenの配列],[Blueの配列]] のような形にする。
+                image = image / 255.                   # 値を0-1に正規化
+                image_list.append(image)                  # 出来上がった配列を追加  
+                
+                file_name.append(f)
+            except Exception as e:
+                print(str(e))
 
-# 画像を読み込む
-img1 = openfile('1_test')
-img2 = openfile('2_test')
-x = np.array(img1 + img2)  # リストを結合
+        X = np.array(image_list)
+
+        with open(path_to_images_pickle_x, 'wb') as f:
+            pickle.dump(X, f)
+
+    print(X.shape)
+
+    print('loading data ...done ' + path_to_test_images)
+    return X, file_name
+
+def predict(model, X, file_name):
+    print('predicting ...')
+    dic = OrderedDict()
+    dic['file_name'] = file_name
+    dic['predict,ion'] = model.predict(
+        X,
+        batch_size=None,
+        vervose=1
+    )
+    print('done.')
+    return pd.DataFrame(dic)
+
+X, file_name = load_data(PATH_TO_TEST_IMAGES, PATH_TO_TEST_PICKLE_X)
 
 # 機械学習器を復元
-model = model_from_json(open('model', 'r').read())
-model.load_weights('param.hdf5')
+model = model_from_json(open(PATH_TO_MODEL +"\model", 'r').read())
+model.load_weights(PATH_TO_MODELPARAM + "\model.hdf5")
 
-
-# テスト用のデータを保存
-with open("test_result.csv", "w") as fw:
-    test = model.predict_classes(x)
-    test = [str(val) for val in test] # 出力を文字列に変換
-    print(test)
-    fw.write("{0}\n".format("\n".join(test)))
+## output the submit file
+submit = predict(model, X, file_name)
+submit.to_csv(PATH_TO_SUBMIT_FILE, index=None, header=None)
